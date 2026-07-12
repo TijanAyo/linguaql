@@ -1,0 +1,26 @@
+# --- Core runtime (installed in Docker + local) ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+anthropic>=0.40
+sqlglot>=25
+asyncpg==0.30.0
+polars>=1.10
+pgvector>=0.3.6
+langgraph>=0.2.50
+numpy>=2.0
+httpx>=0.27
+openai>=1.50          # OpenAIEmbedder (text-embedding-3-small); EMBEDDER=openai
+cryptography>=43      # Fernet credential encryption
+nltk>=3.9             # WordNet synonym expansion (SYNONYMS=wordnet)
+aiomysql>=0.2.0       # MySQL source-database adapter
+
+# --- Tests ---
+pytest==8.3.4
+pytest-asyncio==0.25.1
+
+# --- OPTIONAL local extras (not required to run the skeleton) ---
+# The default embedder (EMBEDDER=hashing) is a lightweight deterministic
+# HashingEmbedder that needs no extra deps. For EMBEDDER=local, also install:
+#   sentence-transformers==3.3.1   # -> LocalEmbedder (all-MiniLM-L6-v2), pulls torch (~1GB)

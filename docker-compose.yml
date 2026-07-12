@@ -1,0 +1,79 @@
+services:
+  app-postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: linguaql
+      POSTGRES_PASSWORD: linguaql
+      POSTGRES_DB: linguaql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linguaql"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5433:5432"
+
+  # Seeded sample SOURCE database the user "connects" LinguaQL to.
+  sample-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: shop
+    volumes:
+      - ./sample-db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d shop"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5434:5432"
+
+  # Optional seeded MySQL source DB (start with: docker compose --profile mysql up).
+  # Connect it in the UI as: mysql://root:root@sample-mysql:3306/shop
+  sample-mysql:
+    image: mysql:8
+    profiles: ["mysql"]
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: shop
+    volumes:
+      - ./sample-mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -proot --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "3307:3306"
+
+  backend:
+    build: ./backend
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GENERATOR_MODEL: ${GENERATOR_MODEL:-claude-opus-4-8}
+      DATABASE_URL: postgresql://linguaql:linguaql@app-postgres:5432/linguaql
+      VECTOR_STORE: pgvector
+      EMBEDDER: ${EMBEDDER:-hashing}
+      EMBED_DIM: ${EMBED_DIM:-384}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      SYNONYMS: ${SYNONYMS:-none}
+      SNAPSHOT_TTL_HOURS: ${SNAPSHOT_TTL_HOURS:-24}
+    depends_on:
+      app-postgres:
+        condition: service_healthy
+      sample-db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
