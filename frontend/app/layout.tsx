@@ -2,7 +2,12 @@ import "./globals.css";
 
 export const metadata = {
   title: "LinguaQL",
-  description: "Ask your database in plain English",
+  description: "Speak with your database in plain English",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

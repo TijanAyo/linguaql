@@ -16,3 +16,33 @@ th,
 td {
     font-family: inherit;
 }
+
+/* --- Responsive layout --- */
+.app {
+    padding: 24px;
+}
+.chart {
+    height: 360px;
+}
+
+@media (max-width: 640px) {
+    .app {
+        padding: 16px;
+    }
+    /* Stack inputs and their buttons vertically on narrow screens. */
+    .row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .row button {
+        width: 100%;
+    }
+    /* Let the intro line and the budget chip wrap instead of colliding. */
+    .subhead {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .chart {
+        height: 260px;
+    }
+}
