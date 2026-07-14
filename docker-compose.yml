@@ -61,8 +61,6 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       SYNONYMS: ${SYNONYMS:-none}
       SNAPSHOT_TTL_HOURS: ${SNAPSHOT_TTL_HOURS:-24}
-      # Dev tooling for local runs: enables the guardrail hook + /dev/simulate.
-      # Set ENABLE_DEBUG_HOOKS=false for a public deploy.
       ENABLE_DEBUG_HOOKS: ${ENABLE_DEBUG_HOOKS:-true}
     depends_on:
       app-postgres:
@@ -73,12 +71,15 @@ services:
       - "8000:8000"
 
   frontend:
-    build: ./frontend
-    environment:
-      NEXT_PUBLIC_API_BASE: http://localhost:8000
-      # Shows the "force guardrail" button + the "simulate error" test panel.
-      # Set NEXT_PUBLIC_DEV_MODE=false for a public deploy.
-      NEXT_PUBLIC_DEV_MODE: ${NEXT_PUBLIC_DEV_MODE:-true}
+    build:
+      context: ./frontend
+      # NEXT_PUBLIC_* are inlined at BUILD time by `npm run build`, so they must
+      # be passed as build-args (not runtime env). These override the prod
+      # defaults baked into frontend/Dockerfile so local dev points at localhost.
+      args:
+        NEXT_PUBLIC_API_BASE: http://localhost:8000
+        NEXT_PUBLIC_DEV_MODE: "true"
+        NEXT_PUBLIC_SAMPLE_DB_URL: postgresql://demo:demo@sample-db:5432/shop
     depends_on:
       - backend
     ports:
