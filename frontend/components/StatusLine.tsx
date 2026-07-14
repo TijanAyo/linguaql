@@ -8,12 +8,6 @@ const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", 
 const VERB_MS = 4500; // let each verb linger a beat
 const SPIN_MS = 80;
 
-/**
- * While `busy`, shows an animated spinner + a rotating verb from the current
- * phase's pool (shuffled, no immediate repeats). When idle, shows the literal
- * `status` string (result/outcome messages) — those carry information and must
- * stay exact.
- */
 export default function StatusLine({
   busy,
   phase,
@@ -41,7 +35,7 @@ export default function StatusLine({
     }, VERB_MS);
     const spinTimer = setInterval(
       () => setFrame((f) => (f + 1) % SPINNER.length),
-      SPIN_MS
+      SPIN_MS,
     );
     return () => {
       clearInterval(verbTimer);
