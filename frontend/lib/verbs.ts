@@ -1,8 +1,3 @@
-// Spinner verbs — playful rotating status words shown while the app is busy.
-// Bucketed by phase so they read as intentional: data-flavored verbs while we
-// dig through a schema, thinking-flavored verbs while we compose a query.
-// (Curated from the full LingoQL verb list; add or re-bucket freely.)
-
 export type Phase = "ingest" | "query";
 
 // Connect & Ingest — "Snooping & digging" + self-referential LingoQL nods.

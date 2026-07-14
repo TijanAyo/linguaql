@@ -7,14 +7,22 @@ import StatusLine from "./StatusLine";
 import type { Phase } from "../lib/verbs";
 
 const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-// Reachable from the backend container (docker network hostname).
-const SAMPLE_DB_URL = "postgresql://demo:demo@sample-db:5432/shop";
-// The "force guardrail" button is a debug affordance — only in dev builds.
+const SAMPLE_DB_URL =
+  process.env.NEXT_PUBLIC_SAMPLE_DB_URL ||
+  "postgresql://demo:demo@sample-db:5432/shop";
 const DEV = process.env.NEXT_PUBLIC_DEV_MODE === "true";
+
+function maskDbUrl(url: string): string {
+  const m = url.match(/^(\w+:\/\/)([^:@/]+):([^@]+)@([^/]+)(\/.*)?$/);
+  if (!m) return url;
+  const [, scheme, user, , , path = ""] = m;
+  return `${scheme}${user}:****@****${path}`;
+}
 
 export default function ChatInterface() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [dbUrl, setDbUrl] = useState(SAMPLE_DB_URL);
+  const [dbFocused, setDbFocused] = useState(false);
   const [status, setStatus] = useState("");
   const [question, setQuestion] = useState("total revenue by month");
   const [result, setResult] = useState<any>(null);
@@ -52,7 +60,7 @@ export default function ChatInterface() {
       }).then((r) => r.json());
       setProjectId(p.id);
       setStatus(
-        `Connected. ${reloaded.table_count} tables, ${reloaded.column_count} columns ingested.`
+        `Connected. ${reloaded.table_count} tables, ${reloaded.column_count} columns ingested.`,
       );
     } catch (e: any) {
       setStatus("Error: " + e.message);
@@ -84,10 +92,10 @@ export default function ChatInterface() {
         r.needs_clarification
           ? "Needs confirmation."
           : r.ok
-          ? `Done (retries: ${r.retry_count}).`
-          : r.error
-          ? "" // the error banner below carries the message
-          : "Query returned an error."
+            ? `Done (retries: ${r.retry_count}).`
+            : r.error
+              ? "" // the error banner below carries the message
+              : "Query returned an error.",
       );
     } catch (e: any) {
       setStatus("Error: " + e.message);
@@ -123,10 +131,12 @@ export default function ChatInterface() {
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <input
-          value={dbUrl}
+          value={dbFocused ? dbUrl : maskDbUrl(dbUrl)}
           onChange={(e) => setDbUrl(e.target.value)}
+          onFocus={() => setDbFocused(true)}
+          onBlur={() => setDbFocused(false)}
           style={inputStyle}
-          placeholder="postgres connection URL"
+          placeholder="insert DB connection URL"
         />
         <button onClick={connect} disabled={busy} style={btnStyle}>
           Connect & Ingest
@@ -152,7 +162,11 @@ export default function ChatInterface() {
             <button
               onClick={() => ask(true)}
               disabled={busy || outOfBudget}
-              style={{ ...btnStyle, background: "#3a2a2a", borderColor: "#5a3a3a" }}
+              style={{
+                ...btnStyle,
+                background: "#3a2a2a",
+                borderColor: "#5a3a3a",
+              }}
               title="Injects a bad column to demonstrate the validator + self-correction loop"
             >
               Ask (force guardrail)
@@ -193,7 +207,11 @@ export default function ChatInterface() {
               }}
             >
               <div style={{ marginBottom: 8 }}>{result.clarification}</div>
-              <button onClick={() => ask(false, true)} disabled={busy} style={btnStyle}>
+              <button
+                onClick={() => ask(false, true)}
+                disabled={busy}
+                style={btnStyle}
+              >
                 Confirm & run
               </button>
             </div>
@@ -202,13 +220,23 @@ export default function ChatInterface() {
           {result.error && !outOfBudget && (
             <div style={{ color: "#ff8a8a", marginTop: 12 }}>
               {result.error}
-              {result.needs_reload && "... click Connect & Ingest to reload the schema."}
+              {result.needs_reload &&
+                "... click Connect & Ingest to reload the schema."}
             </div>
           )}
-          <ChartRenderer chartType={result.chart_type} chartData={result.chart_data} />
+          <ChartRenderer
+            chartType={result.chart_type}
+            chartData={result.chart_data}
+          />
           {cols.length > 0 && (
             <div style={{ overflowX: "auto", marginTop: 16 }}>
-              <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+              <table
+                style={{
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  fontSize: 13,
+                }}
+              >
                 <thead>
                   <tr>
                     {cols.map((c) => (
@@ -234,10 +262,41 @@ export default function ChatInterface() {
           )}
         </div>
       )}
+
+      <div style={howtoStyle}>
+        <div style={{ fontWeight: 600, marginBottom: 6, opacity: 0.85 }}>
+          Lingua 101
+        </div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>
+            A sample database is already provided — just click{" "}
+            <b>Connect &amp; Ingest</b> to load it.
+          </li>
+          <li>
+            Prefer your own data? Paste any PostgreSQL / MySQL connection URL in
+            the box above, then Connect &amp; Ingest.
+          </li>
+          <li>
+            Ask a question in plain English and hit <b>Ask</b>.
+          </li>
+        </ol>
+        <div style={{ marginTop: 8, opacity: 0.7 }}>
+          Try: &ldquo;total revenue by month&rdquo; &middot; &ldquo;top 5
+          products by revenue&rdquo; &middot; &ldquo;average order value by
+          country&rdquo; &middot; &ldquo;best-rated products&rdquo;
+        </div>
+      </div>
     </div>
   );
 }
 
+const howtoStyle: React.CSSProperties = {
+  marginTop: 28,
+  paddingTop: 16,
+  borderTop: "1px solid #21252d",
+  fontSize: 13,
+  color: "#c7ccd4",
+};
 const inputStyle: React.CSSProperties = {
   flex: 1,
   padding: "10px 12px",
