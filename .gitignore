@@ -18,6 +18,8 @@ node_modules/
 frontend/.next/
 frontend/out/
 npm-debug.log*
+frontend/next-env.d.ts
+*.tsbuildinfo
 
 # OS / editor
 .DS_Store

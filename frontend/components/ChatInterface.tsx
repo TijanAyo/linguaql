@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SQLDisplay from "./SQLDisplay";
 import ChartRenderer from "./ChartRenderer";
+import StatusLine from "./StatusLine";
+import type { Phase } from "../lib/verbs";
 
 const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 // Reachable from the backend container (docker network hostname).
 const SAMPLE_DB_URL = "postgresql://demo:demo@sample-db:5432/shop";
+// The "force guardrail" button is a debug affordance — only in dev builds.
+const DEV = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
 export default function ChatInterface() {
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -15,17 +19,34 @@ export default function ChatInterface() {
   const [question, setQuestion] = useState("total revenue by month");
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<Phase>("query");
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [limit, setLimit] = useState<number | null>(null);
+
+  function refreshLimits() {
+    fetch(`${API}/limits`)
+      .then((r) => r.json())
+      .then((d) => {
+        setRemaining(d.queries_remaining);
+        setLimit(d.queries_limit);
+      })
+      .catch(() => {});
+  }
+  // Load the shared daily budget on mount.
+  useEffect(refreshLimits, []);
+
+  const outOfBudget = remaining != null && remaining <= 0;
 
   async function connect() {
     setBusy(true);
-    setStatus("Registering project…");
+    setPhase("ingest");
+    setStatus("");
     try {
       const p = await fetch(`${API}/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "demo", db_url: dbUrl }),
       }).then((r) => r.json());
-      setStatus("Ingesting schema…");
       const reloaded = await fetch(`${API}/projects/${p.id}/reload`, {
         method: "POST",
       }).then((r) => r.json());
@@ -41,10 +62,11 @@ export default function ChatInterface() {
   }
 
   async function ask(forceBad = false, confirmed = false) {
-    if (!projectId) return;
+    if (!projectId || outOfBudget) return;
     setBusy(true);
+    setPhase("query");
     setResult(null);
-    setStatus("Thinking…");
+    setStatus("");
     try {
       const r = await fetch(`${API}/projects/${projectId}/query`, {
         method: "POST",
@@ -56,11 +78,15 @@ export default function ChatInterface() {
         }),
       }).then((r) => r.json());
       setResult(r);
+      if (r.queries_remaining != null) setRemaining(r.queries_remaining);
+      if (r.queries_limit != null) setLimit(r.queries_limit);
       setStatus(
         r.needs_clarification
           ? "Needs confirmation."
           : r.ok
           ? `Done (retries: ${r.retry_count}).`
+          : r.error
+          ? "" // the error banner below carries the message
           : "Query returned an error."
       );
     } catch (e: any) {
@@ -76,7 +102,24 @@ export default function ChatInterface() {
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
       <h1 style={{ fontSize: 28 }}>LinguaQL</h1>
-      <p style={{ opacity: 0.6, marginTop: -8 }}>Ask your database in plain English.</p>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginTop: -8,
+        }}
+      >
+        <p style={{ opacity: 0.6, margin: 0 }}>
+          Ask your database in plain English.
+        </p>
+        {remaining != null && limit != null && (
+          <span style={counterStyle} title="Shared daily demo budget">
+            {outOfBudget ? "🎬" : "🔋"} {remaining} / {limit} free queries left
+            today
+          </span>
+        )}
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <input
@@ -98,23 +141,34 @@ export default function ChatInterface() {
             style={inputStyle}
             onKeyDown={(e) => e.key === "Enter" && ask(false)}
           />
-          <button onClick={() => ask(false)} disabled={busy} style={btnStyle}>
+          <button
+            onClick={() => ask(false)}
+            disabled={busy || outOfBudget}
+            style={btnStyle}
+          >
             Ask
           </button>
-          <button
-            onClick={() => ask(true)}
-            disabled={busy}
-            style={{ ...btnStyle, background: "#3a2a2a", borderColor: "#5a3a3a" }}
-            title="Injects a bad column to demonstrate the validator + self-correction loop"
-          >
-            Ask (force guardrail)
-          </button>
+          {DEV && (
+            <button
+              onClick={() => ask(true)}
+              disabled={busy || outOfBudget}
+              style={{ ...btnStyle, background: "#3a2a2a", borderColor: "#5a3a3a" }}
+              title="Injects a bad column to demonstrate the validator + self-correction loop"
+            >
+              Ask (force guardrail)
+            </button>
+          )}
         </div>
       )}
 
-      {status && (
-        <div style={{ marginTop: 12, fontSize: 13, opacity: 0.75 }}>{status}</div>
+      {outOfBudget && (
+        <div style={{ marginTop: 12, fontSize: 13, opacity: 0.75 }}>
+          That's a wrap for today 🎬... the daily budget is spent. Come back
+          tomorrow!
+        </div>
       )}
+
+      <StatusLine busy={busy} phase={phase} status={status} />
 
       {result && (
         <div style={{ marginTop: 8 }}>
@@ -145,10 +199,10 @@ export default function ChatInterface() {
             </div>
           )}
           <SQLDisplay sql={result.generated_sql} />
-          {result.error && (
+          {result.error && !outOfBudget && (
             <div style={{ color: "#ff8a8a", marginTop: 12 }}>
               {result.error}
-              {result.needs_reload && " — click Connect & Ingest to reload the schema."}
+              {result.needs_reload && "... click Connect & Ingest to reload the schema."}
             </div>
           )}
           <ChartRenderer chartType={result.chart_type} chartData={result.chart_data} />
@@ -202,13 +256,25 @@ const btnStyle: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 14,
 };
+const counterStyle: React.CSSProperties = {
+  fontSize: 12,
+  opacity: 0.75,
+  padding: "4px 10px",
+  borderRadius: 999,
+  border: "1px solid #2a2f3a",
+  background: "#1a1d24",
+  whiteSpace: "nowrap",
+  fontFamily: "var(--font-datatype), ui-monospace, monospace",
+};
 const thStyle: React.CSSProperties = {
   textAlign: "left",
   borderBottom: "1px solid #2a2f3a",
   padding: "8px 10px",
   opacity: 0.7,
+  fontFamily: "var(--font-datatype), ui-monospace, monospace",
 };
 const tdStyle: React.CSSProperties = {
   borderBottom: "1px solid #21252d",
   padding: "8px 10px",
+  fontFamily: "var(--font-datatype), ui-monospace, monospace",
 };
