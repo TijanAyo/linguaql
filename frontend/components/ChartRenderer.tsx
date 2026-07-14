@@ -70,9 +70,9 @@ export default function ChartRenderer({ chartType, chartData }: Props) {
   return (
     <div
       ref={ref}
+      className="chart"
       style={{
         width: "100%",
-        height: 360,
         marginTop: 16,
         background: "#1a1d24",
         border: "1px solid #2a2f3a",

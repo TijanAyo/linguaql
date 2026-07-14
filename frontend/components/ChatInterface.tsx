@@ -108,9 +108,10 @@ export default function ChatInterface() {
   const rows: any[] = result?.rows || [];
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
+    <div className="app" style={{ maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ fontSize: 28 }}>LinguaQL</h1>
       <div
+        className="subhead"
         style={{
           display: "flex",
           alignItems: "center",
@@ -119,7 +120,7 @@ export default function ChatInterface() {
         }}
       >
         <p style={{ opacity: 0.6, margin: 0 }}>
-          Ask your database in plain English.
+          Speak with your database in plain English.
         </p>
         {remaining != null && limit != null && (
           <span style={counterStyle} title="Shared daily demo budget">
@@ -129,7 +130,7 @@ export default function ChatInterface() {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+      <div className="row" style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <input
           value={dbFocused ? dbUrl : maskDbUrl(dbUrl)}
           onChange={(e) => setDbUrl(e.target.value)}
@@ -144,7 +145,7 @@ export default function ChatInterface() {
       </div>
 
       {projectId && (
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <div className="row" style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <input
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
