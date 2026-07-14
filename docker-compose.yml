@@ -61,6 +61,9 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       SYNONYMS: ${SYNONYMS:-none}
       SNAPSHOT_TTL_HOURS: ${SNAPSHOT_TTL_HOURS:-24}
+      # Dev tooling for local runs: enables the guardrail hook + /dev/simulate.
+      # Set ENABLE_DEBUG_HOOKS=false for a public deploy.
+      ENABLE_DEBUG_HOOKS: ${ENABLE_DEBUG_HOOKS:-true}
     depends_on:
       app-postgres:
         condition: service_healthy
@@ -73,6 +76,9 @@ services:
     build: ./frontend
     environment:
       NEXT_PUBLIC_API_BASE: http://localhost:8000
+      # Shows the "force guardrail" button + the "simulate error" test panel.
+      # Set NEXT_PUBLIC_DEV_MODE=false for a public deploy.
+      NEXT_PUBLIC_DEV_MODE: ${NEXT_PUBLIC_DEV_MODE:-true}
     depends_on:
       - backend
     ports:

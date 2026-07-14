@@ -7,6 +7,13 @@ RUN npm install
 
 COPY . .
 
+ARG NEXT_PUBLIC_API_BASE
+ARG NEXT_PUBLIC_DEV_MODE
+ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+ENV NEXT_PUBLIC_DEV_MODE=$NEXT_PUBLIC_DEV_MODE
+
+RUN npm run build
+
 EXPOSE 3000
-# Dev server keeps the skeleton simple (no build step / standalone output).
-CMD ["npm", "run", "dev"]
+
+CMD npm start

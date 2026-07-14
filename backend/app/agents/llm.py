@@ -1,7 +1,42 @@
 from __future__ import annotations
 
+import logging
+
+from app import copy
 from app.config import Settings
 from app.models.schemas import SQLResponse
+
+logger = logging.getLogger("linguaql.generator")
+
+
+class GeneratorError(RuntimeError):
+    """A generator failure with a user-safe message.
+
+    `user_message` is friendly, sanitized copy shown to the visitor; `detail`
+    is the raw cause, logged server-side but never returned in the API response
+    (so we don't leak SDK internals like "your credit balance is too low").
+    """
+
+    def __init__(self, user_message: str, *, detail: str | None = None) -> None:
+        super().__init__(user_message)
+        self.user_message = user_message
+        self.detail = detail
+
+
+def _friendly_anthropic_error(exc: Exception) -> str:
+    """Map an Anthropic SDK exception to sanitized, on-brand copy."""
+    import anthropic
+
+    text = str(getattr(exc, "message", "") or exc).lower()
+    if isinstance(exc, anthropic.RateLimitError):
+        return copy.UPSTREAM_BUSY
+    if isinstance(exc, (anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
+        return copy.CONFIG_ISSUE
+    if "credit" in text or "billing" in text or "balance" in text:
+        return copy.BUDGET_EXHAUSTED
+    if isinstance(exc, anthropic.APIConnectionError):
+        return copy.UPSTREAM_BUSY
+    return copy.GENERIC
 
 _SQL_TOOL = {
     "name": "emit_sql",
@@ -58,10 +93,12 @@ def generate_sql(
     dialect: str = "postgres",
 ) -> SQLResponse:
     if not settings.anthropic_api_key:
-        raise RuntimeError(
-            "ANTHROPIC_API_KEY is not set — the SQL generator requires it."
+        raise GeneratorError(
+            copy.NO_KEY,
+            detail="ANTHROPIC_API_KEY is not set — the SQL generator requires it.",
         )
 
+    import anthropic
     from anthropic import Anthropic
 
     client = Anthropic(api_key=settings.anthropic_api_key)
@@ -69,19 +106,26 @@ def generate_sql(
         question, schema_context, relationship_context, validation_errors
     )
 
-    msg = client.messages.create(
-        model=settings.generator_model,
-        max_tokens=1500,
-        system=_SYSTEM_TEMPLATE.format(
-            dialect=_DIALECT_NAMES.get(dialect, "PostgreSQL")
-        ),
-        tools=[_SQL_TOOL],
-        tool_choice={"type": "tool", "name": "emit_sql"},
-        messages=[{"role": "user", "content": user_prompt}],
-    )
+    try:
+        msg = client.messages.create(
+            model=settings.generator_model,
+            max_tokens=1500,
+            system=_SYSTEM_TEMPLATE.format(
+                dialect=_DIALECT_NAMES.get(dialect, "PostgreSQL")
+            ),
+            tools=[_SQL_TOOL],
+            tool_choice={"type": "tool", "name": "emit_sql"},
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+    except anthropic.APIError as e:  # credit exhaustion, rate limit, auth, network…
+        logger.warning("Anthropic call failed: %s", e)
+        raise GeneratorError(_friendly_anthropic_error(e), detail=str(e)) from e
 
     for block in msg.content:
         if getattr(block, "type", None) == "tool_use" and block.name == "emit_sql":
             return SQLResponse.model_validate(block.input)
 
-    raise RuntimeError("Generator did not return a structured emit_sql tool call.")
+    raise GeneratorError(
+        copy.GENERIC,
+        detail="Generator did not return a structured emit_sql tool call.",
+    )

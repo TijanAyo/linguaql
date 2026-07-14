@@ -29,9 +29,21 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
 
     # Pipeline
-    max_retries: int = 3
+    max_retries: int = 2               # self-correction loop cap (bounds per-query Opus spend)
     retrieve_top_k: int = 15
     source_query_timeout: int = 10
+
+    # Public-demo hardening
+    # Debug hooks (the "force guardrail" escape hatch) are OFF by default so a
+    # hosted deployment can't be driven into the verification path. Turn on only
+    # for local demos: ENABLE_DEBUG_HOOKS=true.
+    enable_debug_hooks: bool = False
+    # Global daily budget: at most this many queries across ALL users per day
+    # (protects the funded Anthropic wallet). In-memory; resets on restart.
+    daily_query_cap: int = 100
+    # Per-IP throttle (slowapi). Burst guard + per-visitor share of the pool.
+    rate_limit_per_minute: int = 5
+    rate_limit_per_day: int = 10
 
     # Cost estimator (Node 4)
     complexity_max: int = 50            # static score above which the query is rejected

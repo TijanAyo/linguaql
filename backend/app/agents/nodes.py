@@ -91,7 +91,7 @@ async def generator(state: AgentState, ctx: PipelineContext) -> dict[str, Any]:
     # guardrail + self-correction loop can be observed live. A well-aligned model
     # ignores a "please write a bad column" instruction, so we inject it directly.
     force_bad = state.get("force_bad_column")
-    if force_bad and retry_count == 0:
+    if force_bad and retry_count == 0 and ctx.settings.enable_debug_hooks:
         tables = state.get("enriched_tables") or list(ctx.catalog.tables.keys())
         first_table = tables[0] if tables else "orders"
         return {

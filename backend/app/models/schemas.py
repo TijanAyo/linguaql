@@ -96,6 +96,10 @@ class QueryResult(BaseModel):
     needs_clarification: bool = False
     clarification: Optional[str] = None
 
+    # Public-demo daily budget (set by the API layer, not the pipeline)
+    queries_remaining: Optional[int] = None
+    queries_limit: Optional[int] = None
+
 
 # LangGraph state (TSD 4)
 class AgentState(TypedDict, total=False):

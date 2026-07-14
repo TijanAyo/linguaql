@@ -1,0 +1,20 @@
+/* Datatype is the app-wide typeface (monospace variable font). Form controls,
+   <pre>, and tables don't inherit font-family by default, so force them to. */
+:root {
+  --font-datatype: "Datatype", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body {
+  font-family: var(--font-datatype);
+}
+
+input,
+button,
+textarea,
+select,
+pre,
+table,
+th,
+td {
+  font-family: inherit;
+}

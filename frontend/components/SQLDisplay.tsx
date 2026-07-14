@@ -16,6 +16,7 @@ export default function SQLDisplay({ sql }: { sql?: string }) {
           overflowX: "auto",
           fontSize: 13,
           color: "#9cdcfe",
+          fontFamily: "var(--font-datatype), ui-monospace, monospace",
         }}
       >
         {sql}
