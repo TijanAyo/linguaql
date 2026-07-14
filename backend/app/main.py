@@ -14,18 +14,27 @@ produces a versioned, immutable SchemaSnapshot; the reconnection flow serves a
 fresh snapshot instantly, or serves the stale one while a new one is built in the
 background and then atomically swapped in (TSD §3a).
 """
-from __future__ import annotations
+# NOTE: no `from __future__ import annotations` here — slowapi wraps the
+# rate-limited endpoints, and stringized annotations (PEP 563) can't be resolved
+# through the wrapper's module globals, which makes FastAPI misread the request
+# body as a query param. Real (non-string) annotations avoid that.
 
 import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
+from app import copy
 from app.agents.graph import run_pipeline
 from app.agents.nodes import PipelineContext
 from app.config import get_settings
@@ -59,20 +68,73 @@ class ProjectEntry:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
+class DailyBudget:
+    """Global per-day query counter that guards the funded Anthropic wallet.
+
+    In-memory and single-instance (fine for a $10 demo); the count resets when
+    the calendar day rolls over, or on process restart.
+    """
+
+    def __init__(self, cap: int) -> None:
+        self.cap = cap
+        self._day = date.today()
+        self.used = 0
+
+    def _rollover(self) -> None:
+        today = date.today()
+        if today != self._day:
+            self._day, self.used = today, 0
+
+    def remaining(self) -> int:
+        self._rollover()
+        return max(0, self.cap - self.used)
+
+    def try_consume(self) -> bool:
+        """Consume one query slot; return False if the day's budget is spent."""
+        self._rollover()
+        if self.used >= self.cap:
+            return False
+        self.used += 1
+        return True
+
+
 class AppState:
     embedder = None
     expander = None
     store: VectorStore | None = None
     cipher: CredentialCipher | None = None
     projects: dict[str, ProjectEntry] = {}
+    budget: DailyBudget | None = None
 
 
 state = AppState()
 
 
+def _client_ip(request: Request) -> str:
+    """Real client IP, honoring the PaaS proxy's X-Forwarded-For (first hop)."""
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return get_remote_address(request)
+
+
+_s = get_settings()
+RATE_LIMIT = f"{_s.rate_limit_per_minute}/minute;{_s.rate_limit_per_day}/day"
+limiter = Limiter(key_func=_client_ip)
+
+
+def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Friendly 429 copy. Per-minute bursts get the 'champ' nudge; the daily
+    per-IP ceiling tells them they've had their share for the day."""
+    per_min = f"{_s.rate_limit_per_minute} per 1 minute"
+    msg = copy.RATE_LIMIT_MINUTE if per_min in str(exc.detail) else copy.RATE_LIMIT_DAY
+    return JSONResponse(status_code=429, content={"ok": False, "error": msg})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    state.budget = DailyBudget(settings.daily_query_cap)
     state.embedder = build_embedder(settings)
     state.expander = build_expander(settings)
 
@@ -98,6 +160,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="LinguaQL", version="0.2.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
@@ -175,6 +239,15 @@ async def health() -> dict[str, object]:
         "vector_store": type(state.store).__name__ if state.store else None,
         "projects": len(state.projects),
     }
+
+
+@app.get("/limits")
+async def limits() -> dict[str, int]:
+    """Remaining shared daily query budget — the frontend counter reads this."""
+    budget = state.budget
+    if budget is None:
+        return {"queries_remaining": 0, "queries_limit": 0}
+    return {"queries_remaining": budget.remaining(), "queries_limit": budget.cap}
 
 
 @app.post("/projects", response_model=Project)
@@ -271,13 +344,31 @@ async def list_snapshots(project_id: str) -> list[SnapshotInfo]:
 
 
 @app.post("/projects/{project_id}/query", response_model=QueryResult)
-async def query_project(project_id: str, body: QueryRequest) -> QueryResult:
+@limiter.limit(RATE_LIMIT)
+async def query_project(
+    request: Request, project_id: str, body: QueryRequest
+) -> QueryResult:
     entry = state.projects.get(project_id)
     if entry is None:
         raise HTTPException(404, "Project not found.")
     active = _active(entry)
     if active is None:
         raise HTTPException(400, "Project not ingested — call /reload first.")
+
+    # Global daily budget — consume a slot only once we're actually going to run
+    # the (paid) pipeline, so validation-only rejections above don't cost budget.
+    budget = state.budget
+    if budget is not None and not budget.try_consume():
+        return JSONResponse(
+            status_code=429,
+            content={
+                "ok": False,
+                "question": body.question,
+                "error": copy.DAILY_CAP,
+                "queries_remaining": 0,
+                "queries_limit": budget.cap,
+            },
+        )
 
     db_url = state.cipher.decrypt_url(entry.enc)
     ctx = PipelineContext(
@@ -290,6 +381,10 @@ async def query_project(project_id: str, body: QueryRequest) -> QueryResult:
         db_url=db_url,
         dialect=db_connections.dialect_of(db_url),
     )
-    return await run_pipeline(
+    result = await run_pipeline(
         ctx, body.question, body.confirmed, body.force_bad_column
     )
+    if budget is not None:
+        result.queries_remaining = budget.remaining()
+        result.queries_limit = budget.cap
+    return result

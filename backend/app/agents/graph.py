@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Awaitable, Callable
 
 from langgraph.graph import END, START, StateGraph
 
+from app import copy
 from app.agents import nodes
+from app.agents.llm import GeneratorError
 from app.agents.nodes import PipelineContext
 from app.models.schemas import AgentState, QueryResult
+
+logger = logging.getLogger("linguaql.pipeline")
 
 NodeFn = Callable[[AgentState, PipelineContext], Awaitable[dict[str, Any]]]
 
@@ -105,8 +110,13 @@ async def run_pipeline(
     }
     try:
         final = await graph.ainvoke(init)
-    except Exception as e:
-        return QueryResult(ok=False, question=question, error=str(e))
+    except GeneratorError as e:
+        # Sanitized, user-safe copy; the raw cause is logged, never returned.
+        logger.warning("Generator error: %s", e.detail or e.user_message)
+        return QueryResult(ok=False, question=question, error=e.user_message)
+    except Exception:  # noqa: BLE001 — never surface raw internals to the user
+        logger.exception("Unexpected pipeline failure")
+        return QueryResult(ok=False, question=question, error=copy.GENERIC)
 
     fr: dict[str, Any] = final.get("final_result", {}) or {}
     return QueryResult(

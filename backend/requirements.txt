@@ -1,6 +1,7 @@
 # --- Core runtime (installed in Docker + local) ---
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
+slowapi==0.1.10       # per-IP rate limiting on the public demo endpoints
 pydantic==2.10.4
 pydantic-settings==2.7.1
 anthropic>=0.40
