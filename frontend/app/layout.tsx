@@ -2,13 +2,9 @@ import "./globals.css";
 
 export const metadata = {
   title: "LinguaQL",
-  description: "ChatGPT for your database",
+  description: "Ask your database in plain English",
 };
 
-// Datatype (Google Fonts) — variable monospace, weight axis 100–900, width
-// baked at 100. Loaded via <link> for compatibility across Next font-data
-// versions; used app-wide via `--font-datatype` (see globals.css). Gracefully
-// falls back to the system monospace stack if the request ever fails.
 export default function RootLayout({
   children,
 }: {
