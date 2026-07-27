@@ -29,5 +29,7 @@ frontend/next-env.d.ts
 # Model caches (sentence-transformers / HF)
 .cache/
 
-
 .ARTICLE.md
+
+
+.claude

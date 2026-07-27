@@ -1,9 +1,3 @@
-"""User-facing demo copy (single source of truth).
-
-Both the real error paths and the dev-only /dev/simulate endpoint pull their
-strings from here, so the test buttons preview exactly what a visitor sees and
-the two can never drift apart.
-"""
 
 # Anthropic wallet is out of credit.
 BUDGET_EXHAUSTED = "API budget for today is used up 🪫... check back soon."

@@ -1,14 +1,15 @@
 # LinguaQL
 
-Ask a read-only PostgreSQL or MySQL database questions in plain English and get
-accurate SQL, results, and an auto-generated chart — with deterministic
+Ask your database questions in plain English and get
+accurate SQL, results, and an auto-generated chart, with deterministic
 guardrails and a self-correcting query engine.
 
-This repository implements the **full TSD v3.0 query engine** — all seven
-LangGraph nodes (retriever, generator, validator, cost estimator, clarifier,
-executor, formatter) with self-correction — plus ingestion. Remaining TSD
-modules (synonyms, MySQL, observability, eval CI) are deferred; see `Roadmap`
-below.
+## Demo
+
+A full run: connect to the sample DB, ingest the schema, ask a question in plain
+English, and get SQL + results + a chart back.
+
+https://github.com/user-attachments/assets/7018afcb-3007-47bb-b824-751a963529cd
 
 ## Architecture
 

@@ -2,7 +2,6 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# System deps kept minimal; wheels cover asyncpg/numpy/polars on slim.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
