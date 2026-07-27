@@ -4,10 +4,6 @@ Ask your database questions in plain English and get
 accurate SQL, results, and an auto-generated chart, with deterministic
 guardrails and a self-correcting query engine.
 
-## Demo
-
-A full run: connect to the sample DB, ingest the schema, ask a question in plain
-English, and get SQL + results + a chart back.
 
 https://github.com/user-attachments/assets/7018afcb-3007-47bb-b824-751a963529cd
 
