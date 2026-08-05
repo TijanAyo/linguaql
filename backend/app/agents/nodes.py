@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import datetime as _dt
 from dataclasses import dataclass
