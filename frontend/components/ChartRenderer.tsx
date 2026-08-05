@@ -8,6 +8,12 @@ type Props = {
   chartData?: any;
 };
 
+const INK = "#201e1d";
+const ACCENT = "#ec3013";
+const MUTED = "#605d5d";
+const AXIS = "#d7d3d3";
+const FONT = '"Archivo", system-ui, sans-serif';
+
 export default function ChartRenderer({ chartType, chartData }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -15,8 +21,15 @@ export default function ChartRenderer({ chartType, chartData }: Props) {
     if (!ref.current) return;
     if (!chartType || chartType === "table" || !chartData) return;
 
-    const chart = echarts.init(ref.current, "dark");
+    const chart = echarts.init(ref.current);
     let option: any = null;
+
+    const axisCommon = {
+      axisLine: { lineStyle: { color: AXIS } },
+      axisTick: { show: false },
+      axisLabel: { color: MUTED, fontFamily: FONT, fontSize: 11 },
+      nameTextStyle: { color: MUTED, fontFamily: FONT, fontSize: 11 },
+    };
 
     if (
       (chartType === "time_series" || chartType === "comparison") &&
@@ -25,20 +38,40 @@ export default function ChartRenderer({ chartType, chartData }: Props) {
     ) {
       option = {
         backgroundColor: "transparent",
-        tooltip: { trigger: "axis" },
+        textStyle: { fontFamily: FONT, color: INK },
+        grid: { left: 56, right: 24, top: 32, bottom: 40 },
+        tooltip: {
+          trigger: "axis",
+          backgroundColor: "#fff",
+          borderColor: INK,
+          borderWidth: 2,
+          textStyle: { color: INK, fontFamily: FONT },
+        },
         xAxis: {
           type: "category",
           data: chartData.x.map((v: any) => String(v)),
           name: chartData.x_label,
+          ...axisCommon,
         },
-        yAxis: { type: "value", name: chartData.y_label },
+        yAxis: {
+          type: "value",
+          name: chartData.y_label,
+          splitLine: { lineStyle: { color: AXIS } },
+          ...axisCommon,
+        },
         series: [
           {
             data: chartData.y,
             type: chartType === "time_series" ? "line" : "bar",
-            smooth: chartType === "time_series",
-            itemStyle: { color: "#4f9dff" },
-            areaStyle: chartType === "time_series" ? { opacity: 0.15 } : undefined,
+            smooth: false,
+            symbol: "circle",
+            symbolSize: 6,
+            itemStyle: { color: ACCENT },
+            lineStyle: { color: ACCENT, width: 2 },
+            areaStyle:
+              chartType === "time_series"
+                ? { color: ACCENT, opacity: 0.12 }
+                : undefined,
           },
         ],
       };
@@ -50,8 +83,13 @@ export default function ChartRenderer({ chartType, chartData }: Props) {
           subtext: chartData.label,
           left: "center",
           top: "center",
-          textStyle: { fontSize: 42, color: "#e6e8eb" },
-          subtextStyle: { fontSize: 14, color: "#9aa0aa" },
+          textStyle: {
+            fontSize: 48,
+            color: ACCENT,
+            fontFamily: FONT,
+            fontWeight: 800,
+          },
+          subtextStyle: { fontSize: 14, color: MUTED, fontFamily: FONT },
         },
       };
     }
@@ -67,17 +105,5 @@ export default function ChartRenderer({ chartType, chartData }: Props) {
 
   if (!chartType || chartType === "table") return null;
 
-  return (
-    <div
-      ref={ref}
-      className="chart"
-      style={{
-        width: "100%",
-        marginTop: 16,
-        background: "#1a1d24",
-        border: "1px solid #2a2f3a",
-        borderRadius: 8,
-      }}
-    />
-  );
+  return <div ref={ref} className="chart" />;
 }

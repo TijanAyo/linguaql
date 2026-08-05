@@ -24,20 +24,13 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        {/* Archivo carries the UI; Datatype stays for SQL and tabular figures. */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Datatype:wght@100..900&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=Datatype:wght@100..900&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body
-        style={{
-          margin: 0,
-          background: "#0f1115",
-          color: "#e6e8eb",
-        }}
-      >
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

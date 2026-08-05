@@ -3,22 +3,23 @@
 import { useEffect, useState } from "react";
 import { Phase, shuffle, verbsFor } from "../lib/verbs";
 
-// Braille spinner frames.
-const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const VERB_MS = 4500; // let each verb linger a beat
-const SPIN_MS = 80;
 
+/**
+ * The working indicator: three pulsing dots plus a rotating verb.
+ * `className` picks the placement — `status-line` on the home screen,
+ * `thinking` in the results body.
+ */
 export default function StatusLine({
   busy,
   phase,
-  status,
+  className = "status-line",
 }: {
   busy: boolean;
   phase: Phase;
-  status: string;
+  className?: string;
 }) {
   const [verb, setVerb] = useState("");
-  const [frame, setFrame] = useState(0);
 
   useEffect(() => {
     if (!busy) return;
@@ -33,30 +34,19 @@ export default function StatusLine({
       }
       setVerb(order[i]);
     }, VERB_MS);
-    const spinTimer = setInterval(
-      () => setFrame((f) => (f + 1) % SPINNER.length),
-      SPIN_MS,
-    );
-    return () => {
-      clearInterval(verbTimer);
-      clearInterval(spinTimer);
-    };
+    return () => clearInterval(verbTimer);
   }, [busy, phase]);
 
-  if (busy) {
-    return (
-      <div style={style}>
-        <span style={{ opacity: 0.8 }}>{SPINNER[frame]}</span> {verb}…
-      </div>
-    );
-  }
-  if (!status) return null;
-  return <div style={style}>{status}</div>;
-}
+  if (!busy) return null;
 
-const style: React.CSSProperties = {
-  marginTop: 12,
-  fontSize: 13,
-  opacity: 0.75,
-  fontFamily: "var(--font-datatype), ui-monospace, monospace",
-};
+  return (
+    <div className={className} role="status" aria-live="polite">
+      <span className="dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      {verb}…
+    </div>
+  );
+}
