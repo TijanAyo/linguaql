@@ -56,15 +56,27 @@ WHERE table_schema = 'public'
 ORDER BY table_name, ordinal_position;
 """
 
+# Read FKs from pg_catalog, NOT information_schema. The information_schema
+# views are privilege-filtered in a way no GRANT can undo: table_constraints
+# requires a privilege other than SELECT, and constraint_column_usage requires
+# outright table ownership. A read-only demo user therefore sees zero FKs
+# there and the RelationshipGraph silently degrades to heuristic inference.
+# pg_catalog needs only USAGE on the schema. unnest(conkey, confkey) pairs the
+# columns positionally so composite FKs yield one edge per column pair.
 _PG_FK_SQL = """
-SELECT tc.table_name AS source_table, kcu.column_name AS source_column,
-       ccu.table_name AS target_table, ccu.column_name AS target_column
-FROM information_schema.table_constraints tc
-JOIN information_schema.key_column_usage kcu
-    ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
-JOIN information_schema.constraint_column_usage ccu
-    ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema
-WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public';
+SELECT src.relname AS source_table, sa.attname AS source_column,
+       tgt.relname AS target_table, ta.attname AS target_column
+FROM pg_constraint c
+JOIN pg_class src ON src.oid = c.conrelid
+JOIN pg_namespace sn ON sn.oid = src.relnamespace
+JOIN pg_class tgt ON tgt.oid = c.confrelid
+JOIN pg_namespace tn ON tn.oid = tgt.relnamespace
+JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS k(src_att, tgt_att, ord)
+    ON TRUE
+JOIN pg_attribute sa ON sa.attrelid = c.conrelid AND sa.attnum = k.src_att
+JOIN pg_attribute ta ON ta.attrelid = c.confrelid AND ta.attnum = k.tgt_att
+WHERE c.contype = 'f' AND sn.nspname = 'public' AND tn.nspname = 'public'
+ORDER BY src.relname, k.ord;
 """
 
 
