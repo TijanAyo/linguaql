@@ -313,6 +313,27 @@ td {
     font-size: 13px;
     color: var(--color-neutral-700);
 }
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.repo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+}
+.repo-link:hover span {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.repo-link svg {
+    width: 15px;
+    height: 15px;
+    fill: currentColor;
+    flex-shrink: 0;
+}
 .home-center {
     width: 100%;
     max-width: 620px;
